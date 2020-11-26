@@ -1,48 +1,72 @@
 # ------------------------------------------------------------------------------------------------
 def CheckQuery(i_Query):
-    SelectIndex = i_Query.index("SELECT");
-    FromIndex = i_Query.index("FROM");
-    WhereIndex = i_Query.index("WHERE");
-    if (checkAttributes(i_Query[SelectIndex + 6:FromIndex - 1].strip()) == False):
-        return False, "Invalid Parsing <attribute_list> failed";
-    if (isTableList(i_Query[FromIndex + 4:WhereIndex - 1].strip()) == False):
-        return False, "Invalid Parsing <table_list> failed";
-    if (checkCondition(i_Query[WhereIndex + 5:].strip(), 0, 0) == False):
-        return False, "Invalid Parsing <condition> failed";
-    return True, "valid";
+    returnString = "Valid";
+    attributesIndex = i_Query.index("SELECT");
+    tablesIndex = i_Query.index("FROM");
+    conditionsIndex = i_Query.index("WHERE");
+    checkTablesAndAttributes = checkTables(i_Query[attributesIndex:tablesIndex], i_Query[tablesIndex:conditionsIndex]);
+    checkTablesAndCoditions = checkTables(i_Query[conditionsIndex:], i_Query[tablesIndex:conditionsIndex]);
+    checkAtt = checkAttributes(i_Query[attributesIndex + 6:tablesIndex - 1].strip());
+    if (checkAttributes(
+            i_Query[attributesIndex + 6:tablesIndex - 1].strip()) == False or checkTablesAndAttributes == False):
+        returnString = "Invalid Parsing <attribute_list> failed";
+    elif (isTableList(i_Query[tablesIndex + 4:conditionsIndex - 1].strip()) == False):
+        returnString = "Invalid Parsing <table_list> failed";
+    elif (checkCondition(i_Query[conditionsIndex + 5:].strip()) == False or checkTablesAndCoditions == False):
+        returnString = "Invalid Parsing <condition> failed";
+    return returnString;
+
+
+# ------------------------------------------------------------------------------------------------
+def checkTables(i_Attributes, i_Tables):
+    isMatchingAttribute = False;
+    if (i_Attributes.find("*") != -1):
+        isMatchingAttribute = True;
+    if (i_Attributes.find("Customers") != -1 and i_Tables.find("Customers") != -1):
+        isMatchingAttribute = True;
+    if (i_Attributes.find("Orders") != -1 and i_Tables.find("Orders") != -1):
+        isMatchingAttribute = True;
+    return isMatchingAttribute;
 
 
 # ------------------------------------------------------------------------------------------------
 def checkAttributes(i_Attributes):
+    isAttributes = False;
     if (i_Attributes == "*"):
-        return True;
-    else:
-        if (i_Attributes.find("DISTINCT") != -1):
-            lst = i_Attributes.split("DISTINCT")
-            i_Attributes = (listToString(lst)).strip()
-        return isAttributeList(i_Attributes);
+        isAttributes = True;
+    if (i_Attributes.find("DISTINCT") == 0):
+        if (i_Attributes[8:].strip() == "*"):
+            isAttributes = True;
+        else:
+            i_Attributes = (i_Attributes[8:].strip());
+    return isAttributes or isAttributeList(i_Attributes);
 
 
 # ------------------------------------------------------------------------------------------------
 def isAttributeList(i_AttributeList):
-    commaIndex = i_AttributeList.find(",")
+    commaIndex = i_AttributeList.find(",");
+    isAttributeListBool = False;
     if (commaIndex == -1):
-        return isAttribute(i_AttributeList.strip());
+        isAttributeListBool = isAttribute(i_AttributeList.strip());
     else:
-        return isAttribute(i_AttributeList[:commaIndex].strip()) and isAttributeList(i_AttributeList[commaIndex + 1:]);
+        isAttributeListBool = isAttribute(i_AttributeList[:commaIndex].strip()) and isAttributeList(
+            i_AttributeList[commaIndex + 1:]);
+    return isAttributeListBool;
 
 
 # ------------------------------------------------------------------------------------------------
 def isAttribute(i_Attribute):
+    isAttributeBool = True;
     attributeSplitList = i_Attribute.split('.');
     if (len(attributeSplitList) == 1):
-        return isCustomerAttrbute(attributeSplitList[0]) or isOrderAttribute(attributeSplitList[0]);
+        isAttributeBool = False;
     if (attributeSplitList[0] == "Customers"):
-        return isCustomerAttrbute(attributeSplitList[1]);
+        isAttributeBool = isCustomerAttrbute(attributeSplitList[1]);
     elif (attributeSplitList[0] == "Orders"):
-        return isOrderAttribute(attributeSplitList[1]);
+        isAttributeBool = isOrderAttribute(attributeSplitList[1]);
     else:
-        return False;
+        isAttributeBool = False;
+    return isAttributeBool;
 
 
 # ------------------------------------------------------------------------------------------------
@@ -52,25 +76,18 @@ def isCustomerAttrbute(i_CustomerAttribute):
 
 # ------------------------------------------------------------------------------------------------
 def isOrderAttribute(i_OrderAttribute):
-    return i_OrderAttribute == "Product" or i_OrderAttribute == "CustomerName" or i_OrderAttribute == "Price";
-
-
-# ------------------------------------------------------------------------------------------------
-def checkFromToWhere(i_Tables):
-    if (len(i_Tables) != 1):
-        return False;
-    else:
-        tableList = i_Tables[0].split(",");
-        return isTableList(tableList)
+    return i_OrderAttribute == "Product" or i_OrderAttribute == "CustomerName" or i_OrderAttribute == "Price"
 
 
 # ------------------------------------------------------------------------------------------------
 def isTableList(i_TableList):
+    isTableListBool = False;
     commaIndex = i_TableList.find(",")
     if (commaIndex == -1):
-        return isTable(i_TableList.strip())
+        isTableListBool = isTable(i_TableList.strip())
     else:
-        return isTable((i_TableList[:commaIndex]).strip()) and isTableList(i_TableList[commaIndex + 1:])
+        isTableListBool = isTable((i_TableList[:commaIndex]).strip()) and isTableList(i_TableList[commaIndex + 1:])
+    return isTableListBool;
 
 
 # ------------------------------------------------------------------------------------------------
@@ -79,85 +96,109 @@ def isTable(table):
 
 
 # ------------------------------------------------------------------------------------------------
-
-def checkCondition(i_Conditions, i_nextIndexToSeachANDFrom, i_nextIndexToSearchORFrom):
+def checkCondition(i_Conditions):
     andBool = False;
+    leftAndBool = False;
+    rightAndBool = False;
     orBool = False;
-    i = i_Conditions.find("AND", i_nextIndexToSeachANDFrom);
-    j = i_Conditions.find("OR", i_nextIndexToSearchORFrom);
-    if (i == -1 and j == -1):
-        return isSimpleCondition(i_Conditions.strip());
-    else:
-        if (i != -1):
-            andBool = checkCondition(i_Conditions[i + 3:].strip(), i + 3, j) and checkCondition(
-                i_Conditions[:i].strip(), 0, j);
-        if (j != -1):
-            orBool = checkCondition(i_Conditions[:j].strip(), i, 0) and checkCondition(i_Conditions[j + 2:].strip(), i,
-                                                                                       j + 2);
-    return andBool or orBool;
+    leftOrBool = False;
+    rightOrBool = False;
+    bracketsBool = False;
+    simpleCodntionBool = False;
+
+    firstAndIndex = i_Conditions.find("AND", 0);
+    firstOrIndex = i_Conditions.find("OR", 0);
+
+    if (i_Conditions.find('(') == 0 and i_Conditions.rfind(')') == (len(i_Conditions) - 1)):
+        bracketsBool = checkCondition(i_Conditions[1: (len(i_Conditions) - 1)]);
+    elif ((firstAndIndex == -1 and firstOrIndex == -1)):
+        simpleCodntionBool = isSimpleCondition(i_Conditions.strip());
+    if (bracketsBool == False and simpleCodntionBool == False):
+        while ((andBool == False and orBool == False) and (firstAndIndex != -1 or firstOrIndex != -1)):
+            if (firstAndIndex != -1):
+                leftAndBool = checkCondition(i_Conditions[:firstAndIndex].strip());
+                rightAndBool = checkCondition(i_Conditions[firstAndIndex + 3:].strip());
+                andBool = leftAndBool and rightAndBool;
+            if (firstOrIndex != -1):
+                leftOrBool = checkCondition(i_Conditions[:firstOrIndex].strip());
+                rightOrBool = checkCondition(i_Conditions[firstOrIndex + 2:].strip());
+                orBool = leftOrBool and rightOrBool;
+            firstAndIndex = i_Conditions.find("AND", firstAndIndex + 3);
+            firstOrIndex = i_Conditions.find("OR", firstOrIndex + 2);
+    return andBool or orBool or bracketsBool or simpleCodntionBool;
 
 
 # --------------------------------------------------------------------------------------------
 def isSimpleCondition(i_Condition):
+    isSimpleConditionBool = True;
     operator = findOperator(i_Condition);
     if (operator == None):
-        return False;
-    ConditionList = i_Condition.split(operator);
-    leftConst = isConstant(ConditionList[0].strip());
-    rightConst = isConstant(ConditionList[1].strip());
-    return leftConst and rightConst;
+        isSimpleConditionBool = False;
+    else:
+        ConditionList = i_Condition.split(operator);
+        leftConst = isConstant(ConditionList[0].strip());
+        rightConst = isConstant(ConditionList[1].strip());
+        if (leftConst[0] == True and rightConst[0] == True):
+            isSimpleConditionBool = (leftConst[1] == rightConst[1]);
+        else:
+            isSimpleConditionBool = False;
+    return isSimpleConditionBool;
 
 
 # --------------------------------------------------------------------------------------------
 def findOperator(i_Condition):
-    index = i_Condition.find("<=");
+    operator = None;
     if (i_Condition.find("<=") != -1):
-        return "<=";
+        operator = "<=";
     if (i_Condition.find(">=") != -1):
-        return ">=";
+        operator = ">=";
     if (i_Condition.find("<>") != -1):
-        return "<>";
+        operator = "<>";
     if (i_Condition.find("=") != -1):
-        return "=";
+        operator = "=";
     if (i_Condition.find(">") != -1):
-        return ">";
+        operator = ">";
     if (i_Condition.find("<") != -1):
-        return "<";
-    return None;
+        operator = "<";
+    return operator;
 
 
 # --------------------------------------------------------------------------------------------
 def isConstant(i_Constant):
+    isConstantAndType = [];
     if (isAttribute(i_Constant)):
-        return True;
-    if (isString(i_Constant)):
-        return True;
-    if (i_Constant.isnumeric()):
-        return True;
-    return False;
+        isConstantAndType = [True, getAttributeType(i_Constant)];
+    elif (isString(i_Constant)):
+        isConstantAndType = [True, "STRING"];
+    elif (i_Constant.isnumeric()):
+        isConstantAndType = [True, "INT"];
+    else:
+        isConstantAndType = [False, None];
+    return isConstantAndType;
+
+
+# --------------------------------------------------------------------------------------------
+def getAttributeType(i_Attribute):
+    attributeType = "STRING";
+    if (i_Attribute.find("Age") != -1 or i_Attribute.find("Price") != -1):
+        attributeType = "INT";
+    else:
+        attributeType = "STRING";
+    return attributeType;
 
 
 # --------------------------------------------------------------------------------------------
 def isString(i_String):
+    isStringBool = False;
     lastIndex = len(i_String) - 1;
-
-    if (i_String.find(chr(8217)) == 0 and i_String.rfind(chr(8217)) == lastIndex):
-        return True;
     if (i_String.find("\'") == 0 and i_String.rfind("\'") == lastIndex):
-        return True;
+        isStringBool = True;
     if (i_String.find("\"") == 0 and i_String.rfind("\"") == lastIndex):
-        return True;
-    return False;
-
-
-# --------------------------------------------------------------------------------------------
-def listToString(lst):
-    str = " "
-    return (str.join(lst))
+        isStringBool = True;
+    return isStringBool;
 
 
 # --------------------------------------------------------------------------------------------
 userQuery = input("Please enter the query: ");
 ans = CheckQuery(userQuery.replace(";", ""));
-print(ans[1])
-
+print(ans);
